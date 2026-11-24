@@ -96,18 +96,7 @@ public:
     thd_ = std::make_shared<std::thread>([this] { ios_.run(); });
   }
 
-  ~rpc_client() {
-    std::promise<void> promise;
-    asio::post(ios_, [this, &promise] {
-      close();
-      stop_client_ = true;
-      //      std::error_code ec;
-      deadline_.cancel();
-      promise.set_value();
-    });
-    promise.get_future().wait();
-    stop();
-  }
+  ~rpc_client() { stop(); }
 
   void run() {
     if (thd_ != nullptr && thd_->joinable()) {
@@ -333,6 +322,15 @@ public:
 
   void stop() {
     if (thd_ != nullptr) {
+      std::promise<void> promise;
+      asio::post(ios_, [this, &promise] {
+        close();
+        stop_client_ = true;
+        enable_reconnect_ = false;
+        deadline_.cancel();
+        promise.set_value();
+      });
+      promise.get_future().wait();
       work_.reset();
       if (thd_->joinable()) {
         thd_->join();
